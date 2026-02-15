@@ -1,7 +1,9 @@
 @page "/"
+@inject NavigationManager Navigation
 
-<PageTitle>Real-Time Dashboard</PageTitle>
-
-<h1>Real-Time Transaction Dashboard</h1>
-
-<p>Welcome to the Real-Time Financial Transaction Dashboard. Use the navigation menu to view transactions.</p>
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+}

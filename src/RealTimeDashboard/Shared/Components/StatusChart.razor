@@ -1,0 +1,52 @@
+@namespace RealTimeDashboard.Shared.Components
+@using RealTimeDashboard.Services
+@inject ChartJsInterop ChartJs
+@implements IAsyncDisposable
+
+<div class="card">
+    <h3>Status Distribution</h3>
+    <div class="chart-container-sm">
+        <canvas id="@_canvasId"></canvas>
+    </div>
+</div>
+
+@code {
+    private const string _canvasId = "statusChart";
+    private bool _chartCreated;
+
+    private static readonly string[] StatusLabels = ["Completed", "Pending", "Processing", "Failed", "Flagged"];
+    private static readonly string[] StatusColors = ["#22c55e", "#eab308", "#3b82f6", "#ef4444", "#8b5cf6"];
+
+    [Parameter] public int Completed { get; set; }
+    [Parameter] public int Pending { get; set; }
+    [Parameter] public int Processing { get; set; }
+    [Parameter] public int Failed { get; set; }
+    [Parameter] public int Flagged { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var data = new[] { Completed, Pending, Processing, Failed, Flagged };
+            await ChartJs.CreateDoughnutChartAsync(_canvasId, StatusLabels, data, StatusColors);
+            _chartCreated = true;
+        }
+    }
+
+    public async Task UpdateAsync(int completed, int pending, int processing, int failed, int flagged)
+    {
+        if (!_chartCreated) return;
+
+        var data = new[] { completed, pending, processing, failed, flagged };
+        await ChartJs.UpdateDoughnutDataAsync(_canvasId, StatusLabels, data);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_chartCreated)
+        {
+            try { await ChartJs.DestroyChartAsync(_canvasId); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+}

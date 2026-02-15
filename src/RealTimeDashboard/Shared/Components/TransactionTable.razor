@@ -1,0 +1,52 @@
+@namespace RealTimeDashboard.Shared.Components
+@using RealTimeDashboard.Data.Entities
+@using RealTimeDashboard.Models
+
+<div class="card">
+    <h3>Recent Transactions</h3>
+    <div class="txn-table-container">
+        <table class="txn-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Amount</th>
+                    <th>Type</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var txn in Transactions)
+                {
+                    <tr class="@(IsNew(txn) ? "new-row" : "")">
+                        <td><code>@txn.TransactionId[..8]</code></td>
+                        <td class="amount">@txn.Amount.ToString("C")</td>
+                        <td><span class="badge-type">@txn.Type</span></td>
+                        <td>@txn.Source</td>
+                        <td><span class="badge-status @GetStatusClass(txn.Status)">@txn.Status</span></td>
+                        <td>@txn.CreatedAt.LocalDateTime.ToString("HH:mm:ss")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<TransactionDto> Transactions { get; set; } = [];
+    [Parameter] public HashSet<string>? NewTransactionIds { get; set; }
+
+    private bool IsNew(TransactionDto txn) =>
+        NewTransactionIds?.Contains(txn.TransactionId) == true;
+
+    private static string GetStatusClass(TransactionStatus status) => status switch
+    {
+        TransactionStatus.Completed => "badge-completed",
+        TransactionStatus.Pending => "badge-pending",
+        TransactionStatus.Processing => "badge-processing",
+        TransactionStatus.Failed => "badge-failed",
+        TransactionStatus.Flagged => "badge-flagged",
+        _ => ""
+    };
+}

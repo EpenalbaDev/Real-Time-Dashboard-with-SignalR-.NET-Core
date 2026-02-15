@@ -43,6 +43,7 @@ builder.Services.AddSingleton<MetricsAggregator>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MetricsAggregator>());
 builder.Services.AddHostedService<TransactionProcessorService>();
 builder.Services.AddHostedService<DashboardBroadcaster>();
+builder.Services.AddScoped<ChartJsInterop>();
 
 var app = builder.Build();
 

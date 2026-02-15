@@ -1,0 +1,17 @@
+@namespace RealTimeDashboard.Shared.Components
+
+<div class="card metric-card @ColorClass">
+    <div class="metric-label">@Label</div>
+    <div class="metric-value">@Value</div>
+    @if (!string.IsNullOrEmpty(SubText))
+    {
+        <div class="metric-sub">@SubText</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+    [Parameter] public string? SubText { get; set; }
+    [Parameter] public string ColorClass { get; set; } = "info";
+}

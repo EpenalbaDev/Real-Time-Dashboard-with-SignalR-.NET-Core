@@ -1,0 +1,34 @@
+@namespace RealTimeDashboard.Shared.Components
+
+<div class="status-indicator">
+    <span class="status-dot @DotClass"></span>
+    <span>@StatusText</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConnectionState State { get; set; }
+
+    private string DotClass => State switch
+    {
+        ConnectionState.Connected => "connected",
+        ConnectionState.Reconnecting => "reconnecting",
+        _ => "disconnected"
+    };
+
+    private string StatusText => State switch
+    {
+        ConnectionState.Connected => "Connected",
+        ConnectionState.Reconnecting => "Reconnecting...",
+        ConnectionState.Disconnected => "Disconnected",
+        ConnectionState.Connecting => "Connecting...",
+        _ => "Unknown"
+    };
+
+    public enum ConnectionState
+    {
+        Disconnected,
+        Connecting,
+        Connected,
+        Reconnecting
+    }
+}

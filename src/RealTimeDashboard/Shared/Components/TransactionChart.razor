@@ -1,0 +1,62 @@
+@namespace RealTimeDashboard.Shared.Components
+@using RealTimeDashboard.Services
+@inject ChartJsInterop ChartJs
+@implements IAsyncDisposable
+
+<div class="card">
+    <h3>Transaction Volume (Last 5 Minutes)</h3>
+    <div class="chart-container">
+        <canvas id="@_canvasId"></canvas>
+    </div>
+</div>
+
+@code {
+    private const string _canvasId = "volumeChart";
+    private const int MaxDataPoints = 300;
+    private bool _chartCreated;
+
+    private readonly List<string> _labels = new();
+    private readonly List<decimal> _data = new();
+
+    [Parameter] public decimal CurrentVolume { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _labels.Add(DateTime.Now.ToString("HH:mm:ss"));
+            _data.Add(CurrentVolume);
+
+            await ChartJs.CreateLineChartAsync(_canvasId,
+                _labels.ToArray(), _data.ToArray(),
+                "Volume ($)", "#3b82f6", "rgba(59,130,246,0.1)");
+            _chartCreated = true;
+        }
+    }
+
+    public async Task UpdateAsync(decimal volume)
+    {
+        if (!_chartCreated) return;
+
+        _labels.Add(DateTime.Now.ToString("HH:mm:ss"));
+        _data.Add(volume);
+
+        // Slide window: keep last MaxDataPoints
+        while (_labels.Count > MaxDataPoints)
+        {
+            _labels.RemoveAt(0);
+            _data.RemoveAt(0);
+        }
+
+        await ChartJs.UpdateLineDataAsync(_canvasId, _labels.ToArray(), _data.ToArray());
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_chartCreated)
+        {
+            try { await ChartJs.DestroyChartAsync(_canvasId); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+}

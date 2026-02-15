@@ -1,0 +1,195 @@
+@page "/dashboard"
+@using Microsoft.AspNetCore.SignalR.Client
+@using RealTimeDashboard.Data.Entities
+@using RealTimeDashboard.Models
+@using RealTimeDashboard.Shared.Components
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="dashboard-header">
+    <h1>Real-Time Transaction Dashboard</h1>
+    <StatusIndicator State="_connectionState" />
+</div>
+
+<!-- Metrics Cards -->
+<div class="metrics-grid">
+    <MetricsCard Label="Transactions (1m)"
+                 Value="@_metrics.TotalTransactions1Min.ToString("N0")"
+                 SubText="@($"{_metrics.TotalTransactions1Hour:N0} last hour")"
+                 ColorClass="info" />
+
+    <MetricsCard Label="Volume (1m)"
+                 Value="@_metrics.TotalVolume1Min.ToString("C0")"
+                 SubText="@($"{_metrics.TotalVolume1Hour:C0} last hour")"
+                 ColorClass="success" />
+
+    <MetricsCard Label="TPS"
+                 Value="@_metrics.TransactionsPerSecond.ToString("F1")"
+                 SubText="@($"Success rate: {_metrics.SuccessRate:F1}%")"
+                 ColorClass="info" />
+
+    <MetricsCard Label="Flagged"
+                 Value="@_metrics.FlaggedCount.ToString("N0")"
+                 SubText="@($"Connections: {_metrics.ActiveConnections}")"
+                 ColorClass="@(_metrics.FlaggedCount > 0 ? "warning" : "success")" />
+</div>
+
+<!-- Main Chart -->
+<div class="charts-grid">
+    <TransactionChart @ref="_volumeChart" CurrentVolume="@_metrics.TotalVolume1Min" />
+</div>
+
+<!-- Side-by-side Charts -->
+<div class="charts-row">
+    <StatusChart @ref="_statusChart" />
+    <SourceChart @ref="_sourceChart" Sources="@_metrics.TopSources" />
+</div>
+
+<!-- Recent Transactions Table -->
+<TransactionTable Transactions="@_recentTransactions" NewTransactionIds="@_newTxnIds" />
+
+@code {
+    private HubConnection? _hubConnection;
+    private StatusIndicator.ConnectionState _connectionState = StatusIndicator.ConnectionState.Disconnected;
+
+    private DashboardMetricsDto _metrics = new();
+    private readonly List<TransactionDto> _recentTransactions = new();
+    private HashSet<string> _newTxnIds = new();
+
+    private TransactionChart? _volumeChart;
+    private StatusChart? _statusChart;
+    private SourceChart? _sourceChart;
+
+    private const int MaxRecentTransactions = 100;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await StartHubConnectionAsync();
+        }
+    }
+
+    private async Task StartHubConnectionAsync()
+    {
+        _connectionState = StatusIndicator.ConnectionState.Connecting;
+        await InvokeAsync(StateHasChanged);
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/hubs/dashboard"))
+            .WithAutomaticReconnect(new[]
+            {
+                TimeSpan.Zero,
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(10)
+            })
+            .Build();
+
+        _hubConnection.On<IReadOnlyList<TransactionDto>>("ReceiveTransactionBatch", OnBatchReceived);
+        _hubConnection.On<DashboardMetricsDto>("ReceiveMetricsUpdate", OnMetricsReceived);
+        _hubConnection.On<AlertDto>("ReceiveAlert", OnAlertReceived);
+
+        _hubConnection.Reconnecting += _ =>
+        {
+            _connectionState = StatusIndicator.ConnectionState.Reconnecting;
+            return InvokeAsync(StateHasChanged);
+        };
+
+        _hubConnection.Reconnected += _ =>
+        {
+            _connectionState = StatusIndicator.ConnectionState.Connected;
+            return InvokeAsync(StateHasChanged);
+        };
+
+        _hubConnection.Closed += _ =>
+        {
+            _connectionState = StatusIndicator.ConnectionState.Disconnected;
+            return InvokeAsync(StateHasChanged);
+        };
+
+        try
+        {
+            await _hubConnection.StartAsync();
+            _connectionState = StatusIndicator.ConnectionState.Connected;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            _connectionState = StatusIndicator.ConnectionState.Disconnected;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OnBatchReceived(IReadOnlyList<TransactionDto> batch)
+    {
+        _newTxnIds = new HashSet<string>(batch.Select(t => t.TransactionId));
+
+        // Prepend new transactions
+        _recentTransactions.InsertRange(0, batch);
+
+        // Trim to max
+        while (_recentTransactions.Count > MaxRecentTransactions)
+        {
+            _recentTransactions.RemoveAt(_recentTransactions.Count - 1);
+        }
+
+        await InvokeAsync(StateHasChanged);
+
+        // Clear new highlight after delay
+        _ = Task.Delay(1500).ContinueWith(_ =>
+        {
+            _newTxnIds.Clear();
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private async Task OnMetricsReceived(DashboardMetricsDto metrics)
+    {
+        _metrics = metrics;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_volumeChart is not null)
+                await _volumeChart.UpdateAsync(metrics.TotalVolume1Min);
+
+            if (_statusChart is not null)
+            {
+                // Derive status counts from metrics
+                var total = metrics.TotalTransactions1Hour;
+                var completed = (int)(total * metrics.SuccessRate / 100.0);
+                var failed = (int)(total * metrics.FailureRate / 100.0);
+                var flagged = metrics.FlaggedCount;
+                var remaining = total - completed - failed - flagged;
+                var pending = remaining / 2;
+                var processing = remaining - pending;
+
+                await _statusChart.UpdateAsync(completed, pending, processing, failed, flagged);
+            }
+
+            if (_sourceChart is not null && metrics.TopSources.Count > 0)
+                await _sourceChart.UpdateAsync(metrics.TopSources);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Component disposed
+        }
+    }
+
+    private Task OnAlertReceived(AlertDto alert)
+    {
+        // Alerts are visible through the flagged count in metrics
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+}

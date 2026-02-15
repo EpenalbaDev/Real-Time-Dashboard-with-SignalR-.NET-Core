@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RealTimeDashboard.Data;
+using RealTimeDashboard.Hubs;
 using RealTimeDashboard.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,6 +8,18 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+
+// SignalR
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 64 * 1024; // 64KB
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+});
+
+// Caching
+builder.Services.AddMemoryCache();
 
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -25,6 +38,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Services
 builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddSingleton<TransactionChannel>();
+builder.Services.AddSingleton<MetricsAggregator>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MetricsAggregator>());
+builder.Services.AddHostedService<TransactionProcessorService>();
+builder.Services.AddHostedService<DashboardBroadcaster>();
 
 var app = builder.Build();
 
@@ -58,6 +76,7 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.MapBlazorHub();
+app.MapHub<DashboardHub>("/hubs/dashboard");
 app.MapFallbackToPage("/_Host");
 
 app.Run();

@@ -1,16 +1,18 @@
 graph LR
-    subgraph "Current: Single Instance (100K/day)"
-        A1["Blazor Server<br/>+ SignalR<br/>+ Background Services"]
-        A2["MySQL<br/>Single Instance"]
-        A1 --> A2
+    subgraph "Current: Single Instance (100K/day, ~1.2 TPS avg)"
+        A1["Blazor Server<br/>+ SignalR Hub<br/>+ 3 BackgroundServices"]
+        A2["MySQL 8.0<br/>Single Instance"]
+        A3["IMemoryCache<br/>In-process"]
+        A1 -->|"EF Core + Pomelo"| A2
+        A1 --- A3
     end
 
-    subgraph "Scale 1: 500K/day"
+    subgraph "Scale 1: 500K/day (~6 TPS avg, 50 TPS peak)"
         B1["Instance 1<br/>Blazor + SignalR"]
         B2["Instance 2<br/>Blazor + SignalR"]
-        B3["Redis<br/>SignalR Backplane<br/>+ Metrics Cache"]
-        B4["MySQL<br/>+ Date Partitioning"]
-        LB["Load Balancer<br/>Sticky Sessions"]
+        B3["Redis<br/>SignalR Backplane<br/>+ Shared Cache"]
+        B4["MySQL<br/>+ Date Partitioning<br/>+ Connection Pooling"]
+        LB["Load Balancer<br/>Sticky Sessions (WebSocket)"]
         LB --> B1
         LB --> B2
         B1 --> B3
@@ -19,20 +21,36 @@ graph LR
         B2 --> B4
     end
 
-    subgraph "Scale 2: 1M+/day"
-        C1["N × Blazor<br/>+ SignalR Instances"]
-        C2["Azure SignalR<br/>Service (Managed)"]
-        C3["Redis Cluster"]
-        C4["MySQL Primary<br/>(Writes)"]
-        C5["MySQL Replica<br/>(Reads)"]
-        C6["Message Queue<br/>RabbitMQ/Kafka"]
+    subgraph "Scale 2: 1M+/day (~12 TPS avg, 100+ TPS peak)"
+        C1["N x Blazor<br/>+ SignalR Instances"]
+        C2["Azure SignalR Service<br/>(Managed, auto-scale)"]
+        C3["Redis Cluster<br/>Cache + Pub/Sub"]
+        C4["MySQL Primary<br/>(Writes only)"]
+        C5["MySQL Replica<br/>(Reads: MetricsAggregator)"]
+        C6["RabbitMQ / Kafka<br/>Replace Channel&lt;T&gt;"]
         C1 --> C2
         C1 --> C3
         C6 --> C4
         C1 --> C5
     end
 
+    subgraph "Scale 3: 10M+/day (CQRS Full Split)"
+        D1["API Gateway<br/>+ SignalR Service"]
+        D2["Write Service<br/>(Transactions)"]
+        D3["Read Service<br/>(Aggregations)"]
+        D4["Kafka<br/>Event Stream"]
+        D5["MySQL / PostgreSQL<br/>(Writes)"]
+        D6["ClickHouse / TimescaleDB<br/>(Time-series reads)"]
+        D1 --> D4
+        D4 --> D2
+        D4 --> D3
+        D2 --> D5
+        D3 --> D6
+    end
+
     style A1 fill:#4CAF50,color:#fff
     style B3 fill:#F44336,color:#fff
     style C2 fill:#9C27B0,color:#fff
     style C6 fill:#FF9800,color:#fff
+    style D4 fill:#FF9800,color:#fff
+    style D6 fill:#2196F3,color:#fff

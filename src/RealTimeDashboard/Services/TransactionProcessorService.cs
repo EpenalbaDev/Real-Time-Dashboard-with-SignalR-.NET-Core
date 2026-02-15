@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using RealTimeDashboard.Data;
 using RealTimeDashboard.Data.Entities;
 
@@ -12,6 +13,21 @@ public sealed class TransactionProcessorService : BackgroundService
 
     private readonly List<TransactionEntity> _dbBatch = new(100);
     private readonly object _batchLock = new();
+
+    // Performance counters
+    private long _totalTransactionsProduced;
+    private long _totalDbFlushes;
+    private long _totalDbRowsWritten;
+    private double _lastFlushMs;
+    private double _maxFlushMs;
+    private double _avgFlushMs;
+
+    public long TotalTransactionsProduced => _totalTransactionsProduced;
+    public long TotalDbFlushes => _totalDbFlushes;
+    public long TotalDbRowsWritten => _totalDbRowsWritten;
+    public double LastFlushMs => _lastFlushMs;
+    public double MaxFlushMs => _maxFlushMs;
+    public double AvgFlushMs => _avgFlushMs;
 
     private static readonly string[] Sources = ["ATM", "POS", "Online", "Transfer", "Mobile"];
     private static readonly string[] Descriptions =
@@ -43,7 +59,9 @@ public sealed class TransactionProcessorService : BackgroundService
 
         await Task.WhenAll(producerTask, writerTask);
 
-        _logger.LogInformation("TransactionProcessorService stopped");
+        _logger.LogInformation(
+            "TransactionProcessorService stopped. Produced: {Produced}, DB flushes: {Flushes}, DB rows: {Rows}, Avg flush: {Avg:F2}ms",
+            _totalTransactionsProduced, _totalDbFlushes, _totalDbRowsWritten, _avgFlushMs);
     }
 
     private async Task ProduceTransactionsAsync(CancellationToken stoppingToken)
@@ -68,6 +86,8 @@ public sealed class TransactionProcessorService : BackgroundService
 
                 // Send to broadcast channel (non-blocking for broadcaster)
                 await _broadcastChannel.Writer.WriteAsync(transaction, stoppingToken);
+
+                Interlocked.Increment(ref _totalTransactionsProduced);
 
                 // Simulate async processing lifecycle
                 _ = SimulateProcessingAsync(transaction, random, stoppingToken);
@@ -124,13 +144,25 @@ public sealed class TransactionProcessorService : BackgroundService
             _dbBatch.Clear();
         }
 
+        var sw = Stopwatch.StartNew();
+
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         context.Transactions.AddRange(toFlush);
         await context.SaveChangesAsync();
 
-        _logger.LogDebug("Flushed {Count} transactions to database", toFlush.Count);
+        sw.Stop();
+        _lastFlushMs = sw.Elapsed.TotalMilliseconds;
+        _totalDbFlushes++;
+        _totalDbRowsWritten += toFlush.Count;
+
+        if (_lastFlushMs > _maxFlushMs)
+            _maxFlushMs = _lastFlushMs;
+
+        _avgFlushMs = (_avgFlushMs * (_totalDbFlushes - 1) + _lastFlushMs) / _totalDbFlushes;
+
+        _logger.LogDebug("Flushed {Count} transactions to database in {Ms:F2}ms", toFlush.Count, _lastFlushMs);
     }
 
     private async Task SimulateProcessingAsync(TransactionEntity transaction, Random random, CancellationToken stoppingToken)

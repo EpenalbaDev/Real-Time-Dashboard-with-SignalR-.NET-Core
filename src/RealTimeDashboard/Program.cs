@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RealTimeDashboard.Data;
 using RealTimeDashboard.Hubs;
+using RealTimeDashboard.Models;
 using RealTimeDashboard.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,8 +42,10 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddSingleton<TransactionChannel>();
 builder.Services.AddSingleton<MetricsAggregator>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MetricsAggregator>());
-builder.Services.AddHostedService<TransactionProcessorService>();
-builder.Services.AddHostedService<DashboardBroadcaster>();
+builder.Services.AddSingleton<TransactionProcessorService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TransactionProcessorService>());
+builder.Services.AddSingleton<DashboardBroadcaster>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DashboardBroadcaster>());
 builder.Services.AddScoped<ChartJsInterop>();
 
 var app = builder.Build();
@@ -78,6 +81,37 @@ app.UseRouting();
 
 app.MapBlazorHub();
 app.MapHub<DashboardHub>("/hubs/dashboard");
+
+app.MapGet("/api/diagnostics", (
+    DashboardBroadcaster broadcaster,
+    MetricsAggregator aggregator,
+    TransactionProcessorService processor) =>
+{
+    return Results.Ok(new DiagnosticsDto
+    {
+        Broadcaster = new BroadcasterDiagnostics(
+            broadcaster.TotalBroadcasts,
+            broadcaster.TotalTransactionsBroadcast,
+            broadcaster.LastBroadcastMs,
+            broadcaster.MaxBroadcastMs,
+            broadcaster.AvgBroadcastMs),
+        Aggregator = new AggregatorDiagnostics(
+            aggregator.TotalComputations,
+            aggregator.LastComputeMs,
+            aggregator.MaxComputeMs,
+            aggregator.AvgComputeMs),
+        Processor = new ProcessorDiagnostics(
+            processor.TotalTransactionsProduced,
+            processor.TotalDbFlushes,
+            processor.TotalDbRowsWritten,
+            processor.LastFlushMs,
+            processor.MaxFlushMs,
+            processor.AvgFlushMs),
+        ActiveConnections = DashboardHub.ConnectionCount,
+        Timestamp = DateTimeOffset.UtcNow
+    });
+});
+
 app.MapFallbackToPage("/_Host");
 
 app.Run();

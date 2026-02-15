@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using RealTimeDashboard.Data;
@@ -16,6 +17,17 @@ public sealed class MetricsAggregator : BackgroundService
     public const string MetricsCacheKey = "dashboard:metrics";
     private static readonly TimeSpan ComputeInterval = TimeSpan.FromMilliseconds(500);
 
+    // Performance counters
+    private long _totalComputations;
+    private double _lastComputeMs;
+    private double _maxComputeMs;
+    private double _avgComputeMs;
+
+    public long TotalComputations => _totalComputations;
+    public double LastComputeMs => _lastComputeMs;
+    public double MaxComputeMs => _maxComputeMs;
+    public double AvgComputeMs => _avgComputeMs;
+
     public MetricsAggregator(
         IServiceScopeFactory scopeFactory,
         IMemoryCache cache,
@@ -30,14 +42,33 @@ public sealed class MetricsAggregator : BackgroundService
     {
         _logger.LogInformation("MetricsAggregator starting");
 
+        var sw = new Stopwatch();
         using var timer = new PeriodicTimer(ComputeInterval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             try
             {
+                sw.Restart();
+
                 var metrics = await ComputeMetricsAsync(stoppingToken);
                 _cache.Set(MetricsCacheKey, metrics, TimeSpan.FromSeconds(5));
+
+                sw.Stop();
+                _lastComputeMs = sw.Elapsed.TotalMilliseconds;
+                _totalComputations++;
+
+                if (_lastComputeMs > _maxComputeMs)
+                    _maxComputeMs = _lastComputeMs;
+
+                _avgComputeMs = (_avgComputeMs * (_totalComputations - 1) + _lastComputeMs) / _totalComputations;
+
+                if (_totalComputations % 120 == 0)
+                {
+                    _logger.LogInformation(
+                        "MetricsAggregator stats: {Total} computations, avg {Avg:F2}ms, max {Max:F2}ms, last {Last:F2}ms",
+                        _totalComputations, _avgComputeMs, _maxComputeMs, _lastComputeMs);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -49,7 +80,8 @@ public sealed class MetricsAggregator : BackgroundService
             }
         }
 
-        _logger.LogInformation("MetricsAggregator stopped");
+        _logger.LogInformation("MetricsAggregator stopped. Total computations: {Total}, Avg latency: {Avg:F2}ms",
+            _totalComputations, _avgComputeMs);
     }
 
     public async Task<DashboardMetricsDto> ComputeMetricsAsync(CancellationToken cancellationToken = default)

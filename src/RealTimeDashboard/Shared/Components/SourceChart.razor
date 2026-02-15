@@ -2,10 +2,11 @@
 @using RealTimeDashboard.Models
 @using RealTimeDashboard.Services
 @inject ChartJsInterop ChartJs
+@inject ILocalizationService Loc
 @implements IAsyncDisposable
 
 <div class="card">
-    <h3>Transactions by Source</h3>
+    <h3>@Loc.Get("chart.sourceTitle")</h3>
     <div class="chart-container-sm">
         <canvas id="@_canvasId"></canvas>
     </div>
@@ -15,9 +16,10 @@
     private const string _canvasId = "sourceChart";
     private bool _chartCreated;
 
-    private static readonly string[] BarColors = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981"];
+    private static readonly string[] BarColors = ["#2f81f7", "#8957e5", "#39d2c0", "#d29922", "#2ea043"];
 
     [Parameter] public IReadOnlyList<SourceBreakdown> Sources { get; set; } = [];
+    [CascadingParameter(Name = "Lang")] public string? Lang { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -25,7 +27,7 @@
         {
             var labels = Sources.Select(s => s.Source).ToArray();
             var data = Sources.Select(s => s.Count).ToArray();
-            await ChartJs.CreateBarChartAsync(_canvasId, labels, data, "Transactions", BarColors);
+            await ChartJs.CreateBarChartAsync(_canvasId, labels, data, Loc.Get("chart.sourceLabel"), BarColors);
             _chartCreated = true;
         }
     }
@@ -41,7 +43,7 @@
         {
             if (!_chartCreated)
             {
-                await ChartJs.CreateBarChartAsync(_canvasId, labels, data, "Transactions", BarColors);
+                await ChartJs.CreateBarChartAsync(_canvasId, labels, data, Loc.Get("chart.sourceLabel"), BarColors);
                 _chartCreated = true;
             }
             else

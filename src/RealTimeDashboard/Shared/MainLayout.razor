@@ -1,15 +1,59 @@
 @inherits LayoutComponentBase
+@inject ILocalizationService Loc
+@implements IDisposable
 
 <PageTitle>Real-Time Dashboard</PageTitle>
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<CascadingValue Value="@Loc.CurrentLanguage" Name="Lang">
+    <div class="page">
+        <div class="sidebar">
+            <NavMenu />
+        </div>
 
-    <main>
-        <article class="content">
-            @Body
-        </article>
-    </main>
-</div>
+        <main>
+            <div class="top-row">
+                <div class="lang-toggle">
+                    <button class="lang-btn @(Loc.CurrentLanguage == "en" ? "active" : "")"
+                            @onclick='() => SetLangAsync("en")'>EN</button>
+                    <button class="lang-btn @(Loc.CurrentLanguage == "es" ? "active" : "")"
+                            @onclick='() => SetLangAsync("es")'>ES</button>
+                </div>
+            </div>
+
+            <article class="content">
+                @Body
+            </article>
+
+            <footer class="app-footer">
+                @Loc.Get("footer.builtBy") <a href="https://www.epenalba.tech" target="_blank" rel="noopener">Edwin Pe&#241;alba</a>
+            </footer>
+        </main>
+    </div>
+</CascadingValue>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Loc.OnLanguageChanged += OnLanguageChanged;
+            await Loc.InitializeAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetLangAsync(string lang)
+    {
+        await Loc.SetLanguageAsync(lang);
+    }
+
+    private void OnLanguageChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Loc.OnLanguageChanged -= OnLanguageChanged;
+    }
+}

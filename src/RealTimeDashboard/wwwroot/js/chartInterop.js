@@ -16,8 +16,8 @@ window.chartInterop = {
                 datasets: [{
                     label: label,
                     data: data,
-                    borderColor: borderColor || '#3b82f6',
-                    backgroundColor: backgroundColor || 'rgba(59,130,246,0.1)',
+                    borderColor: borderColor || '#2f81f7',
+                    backgroundColor: backgroundColor || 'rgba(47,129,247,0.1)',
                     borderWidth: 2,
                     fill: true,
                     tension: 0.3,
@@ -31,17 +31,17 @@ window.chartInterop = {
                 animation: { duration: 300 },
                 scales: {
                     x: {
-                        ticks: { color: '#94a3b8', maxTicksLimit: 10 },
-                        grid: { color: 'rgba(148,163,184,0.1)' }
+                        ticks: { color: '#8b949e', maxTicksLimit: 10 },
+                        grid: { color: 'rgba(139,148,158,0.1)' }
                     },
                     y: {
                         beginAtZero: true,
-                        ticks: { color: '#94a3b8' },
-                        grid: { color: 'rgba(148,163,184,0.1)' }
+                        ticks: { color: '#8b949e' },
+                        grid: { color: 'rgba(139,148,158,0.1)' }
                     }
                 },
                 plugins: {
-                    legend: { labels: { color: '#e2e8f0' } }
+                    legend: { labels: { color: '#e6edf3' } }
                 }
             }
         });
@@ -62,9 +62,9 @@ window.chartInterop = {
                 datasets: [{
                     data: data,
                     backgroundColor: colors || [
-                        '#22c55e', '#eab308', '#3b82f6', '#ef4444', '#6b7280'
+                        '#2ea043', '#d29922', '#2f81f7', '#da3633', '#8957e5'
                     ],
-                    borderColor: '#1e293b',
+                    borderColor: '#161b22',
                     borderWidth: 2
                 }]
             },
@@ -75,7 +75,7 @@ window.chartInterop = {
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { color: '#e2e8f0', padding: 12 }
+                        labels: { color: '#e6edf3', padding: 12 }
                     }
                 }
             }
@@ -98,7 +98,7 @@ window.chartInterop = {
                     label: label,
                     data: data,
                     backgroundColor: backgroundColor || [
-                        '#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#10b981'
+                        '#2f81f7', '#8957e5', '#39d2c0', '#d29922', '#2ea043'
                     ],
                     borderRadius: 4
                 }]
@@ -109,13 +109,13 @@ window.chartInterop = {
                 animation: { duration: 300 },
                 scales: {
                     x: {
-                        ticks: { color: '#94a3b8' },
+                        ticks: { color: '#8b949e' },
                         grid: { display: false }
                     },
                     y: {
                         beginAtZero: true,
-                        ticks: { color: '#94a3b8' },
-                        grid: { color: 'rgba(148,163,184,0.1)' }
+                        ticks: { color: '#8b949e' },
+                        grid: { color: 'rgba(139,148,158,0.1)' }
                     }
                 },
                 plugins: {

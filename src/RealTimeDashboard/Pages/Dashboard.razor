@@ -4,35 +4,36 @@
 @using RealTimeDashboard.Models
 @using RealTimeDashboard.Shared.Components
 @inject NavigationManager Navigation
+@inject ILocalizationService Loc
 @implements IAsyncDisposable
 
 <PageTitle>Dashboard</PageTitle>
 
 <div class="dashboard-header">
-    <h1>Real-Time Transaction Dashboard</h1>
+    <h1>@Loc.Get("dashboard.title")</h1>
     <StatusIndicator State="_connectionState" />
 </div>
 
 <!-- Metrics Cards -->
 <div class="metrics-grid">
-    <MetricsCard Label="Transactions (1m)"
+    <MetricsCard Label="@Loc.Get("dashboard.transactions1m")"
                  Value="@_metrics.TotalTransactions1Min.ToString("N0")"
-                 SubText="@($"{_metrics.TotalTransactions1Hour:N0} last hour")"
+                 SubText="@($"{_metrics.TotalTransactions1Hour:N0} {Loc.Get("dashboard.lastHour")}")"
                  ColorClass="info" />
 
-    <MetricsCard Label="Volume (1m)"
+    <MetricsCard Label="@Loc.Get("dashboard.volume1m")"
                  Value="@_metrics.TotalVolume1Min.ToString("C0")"
-                 SubText="@($"{_metrics.TotalVolume1Hour:C0} last hour")"
+                 SubText="@($"{_metrics.TotalVolume1Hour:C0} {Loc.Get("dashboard.lastHour")}")"
                  ColorClass="success" />
 
-    <MetricsCard Label="TPS"
+    <MetricsCard Label="@Loc.Get("dashboard.tps")"
                  Value="@_metrics.TransactionsPerSecond.ToString("F1")"
-                 SubText="@($"Success rate: {_metrics.SuccessRate:F1}%")"
+                 SubText="@($"{Loc.Get("dashboard.successRate")}: {_metrics.SuccessRate:F1}%")"
                  ColorClass="info" />
 
-    <MetricsCard Label="Flagged"
+    <MetricsCard Label="@Loc.Get("dashboard.flagged")"
                  Value="@_metrics.FlaggedCount.ToString("N0")"
-                 SubText="@($"Connections: {_metrics.ActiveConnections}")"
+                 SubText="@($"{Loc.Get("dashboard.connections")}: {_metrics.ActiveConnections}")"
                  ColorClass="@(_metrics.FlaggedCount > 0 ? "warning" : "success")" />
 </div>
 
@@ -51,6 +52,8 @@
 <TransactionTable Transactions="@_recentTransactions" NewTransactionIds="@_newTxnIds" />
 
 @code {
+    [CascadingParameter(Name = "Lang")] public string? Lang { get; set; }
+
     private HubConnection? _hubConnection;
     private StatusIndicator.ConnectionState _connectionState = StatusIndicator.ConnectionState.Disconnected;
 

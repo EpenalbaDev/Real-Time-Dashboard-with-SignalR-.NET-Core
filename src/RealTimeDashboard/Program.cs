@@ -10,6 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+builder.Services.Configure<Microsoft.AspNetCore.Components.Server.CircuitOptions>(options =>
+{
+    options.DetailedErrors = true;
+});
 
 // Health checks
 builder.Services.AddHealthChecks()
@@ -62,6 +66,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<TransactionProcess
 builder.Services.AddSingleton<DashboardBroadcaster>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DashboardBroadcaster>());
 builder.Services.AddScoped<ChartJsInterop>();
+builder.Services.AddScoped<ILocalizationService, LocalizationService>();
 
 var app = builder.Build();
 

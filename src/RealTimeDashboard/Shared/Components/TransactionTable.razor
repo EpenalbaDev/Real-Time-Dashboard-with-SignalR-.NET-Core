@@ -1,19 +1,20 @@
 @namespace RealTimeDashboard.Shared.Components
 @using RealTimeDashboard.Data.Entities
 @using RealTimeDashboard.Models
+@inject ILocalizationService Loc
 
 <div class="card">
-    <h3>Recent Transactions</h3>
+    <h3>@Loc.Get("table.recentTransactions")</h3>
     <div class="txn-table-container">
         <table class="txn-table">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Amount</th>
-                    <th>Type</th>
-                    <th>Source</th>
-                    <th>Status</th>
-                    <th>Time</th>
+                    <th>@Loc.Get("table.id")</th>
+                    <th>@Loc.Get("table.amount")</th>
+                    <th>@Loc.Get("table.type")</th>
+                    <th>@Loc.Get("table.source")</th>
+                    <th>@Loc.Get("table.status")</th>
+                    <th>@Loc.Get("table.time")</th>
                 </tr>
             </thead>
             <tbody>
@@ -36,6 +37,7 @@
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<TransactionDto> Transactions { get; set; } = [];
     [Parameter] public HashSet<string>? NewTransactionIds { get; set; }
+    [CascadingParameter(Name = "Lang")] public string? Lang { get; set; }
 
     private bool IsNew(TransactionDto txn) =>
         NewTransactionIds?.Contains(txn.TransactionId) == true;

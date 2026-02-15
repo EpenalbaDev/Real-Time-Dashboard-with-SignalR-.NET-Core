@@ -1,4 +1,5 @@
 @namespace RealTimeDashboard.Shared.Components
+@inject ILocalizationService Loc
 
 <div class="status-indicator">
     <span class="status-dot @DotClass"></span>
@@ -7,6 +8,7 @@
 
 @code {
     [Parameter, EditorRequired] public ConnectionState State { get; set; }
+    [CascadingParameter(Name = "Lang")] public string? Lang { get; set; }
 
     private string DotClass => State switch
     {
@@ -17,11 +19,11 @@
 
     private string StatusText => State switch
     {
-        ConnectionState.Connected => "Connected",
-        ConnectionState.Reconnecting => "Reconnecting...",
-        ConnectionState.Disconnected => "Disconnected",
-        ConnectionState.Connecting => "Connecting...",
-        _ => "Unknown"
+        ConnectionState.Connected => Loc.Get("status.connected"),
+        ConnectionState.Reconnecting => Loc.Get("status.reconnecting"),
+        ConnectionState.Disconnected => Loc.Get("status.disconnected"),
+        ConnectionState.Connecting => Loc.Get("status.connecting"),
+        _ => Loc.Get("status.unknown")
     };
 
     public enum ConnectionState

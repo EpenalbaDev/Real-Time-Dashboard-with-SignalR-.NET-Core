@@ -1,10 +1,11 @@
 @namespace RealTimeDashboard.Shared.Components
 @using RealTimeDashboard.Services
 @inject ChartJsInterop ChartJs
+@inject ILocalizationService Loc
 @implements IAsyncDisposable
 
 <div class="card">
-    <h3>Transaction Volume (Last 5 Minutes)</h3>
+    <h3>@Loc.Get("chart.volumeTitle")</h3>
     <div class="chart-container">
         <canvas id="@_canvasId"></canvas>
     </div>
@@ -19,6 +20,7 @@
     private readonly List<decimal> _data = new();
 
     [Parameter] public decimal CurrentVolume { get; set; }
+    [CascadingParameter(Name = "Lang")] public string? Lang { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -29,7 +31,7 @@
 
             await ChartJs.CreateLineChartAsync(_canvasId,
                 _labels.ToArray(), _data.ToArray(),
-                "Volume ($)", "#3b82f6", "rgba(59,130,246,0.1)");
+                Loc.Get("chart.volumeLabel"), "#2f81f7", "rgba(47,129,247,0.1)");
             _chartCreated = true;
         }
     }

@@ -1,10 +1,11 @@
 @namespace RealTimeDashboard.Shared.Components
 @using RealTimeDashboard.Services
 @inject ChartJsInterop ChartJs
+@inject ILocalizationService Loc
 @implements IAsyncDisposable
 
 <div class="card">
-    <h3>Status Distribution</h3>
+    <h3>@Loc.Get("chart.statusTitle")</h3>
     <div class="chart-container-sm">
         <canvas id="@_canvasId"></canvas>
     </div>
@@ -13,23 +14,53 @@
 @code {
     private const string _canvasId = "statusChart";
     private bool _chartCreated;
+    private string? _prevLang;
+    private bool _langChanged;
 
-    private static readonly string[] StatusLabels = ["Completed", "Pending", "Processing", "Failed", "Flagged"];
-    private static readonly string[] StatusColors = ["#22c55e", "#eab308", "#3b82f6", "#ef4444", "#8b5cf6"];
+    private static readonly string[] StatusColors = ["#2ea043", "#d29922", "#2f81f7", "#da3633", "#8957e5"];
+    private int[] _lastData = [0, 0, 0, 0, 0];
 
     [Parameter] public int Completed { get; set; }
     [Parameter] public int Pending { get; set; }
     [Parameter] public int Processing { get; set; }
     [Parameter] public int Failed { get; set; }
     [Parameter] public int Flagged { get; set; }
+    [CascadingParameter(Name = "Lang")] public string? Lang { get; set; }
+
+    private string[] GetStatusLabels() => [
+        Loc.Get("chart.completed"),
+        Loc.Get("chart.pending"),
+        Loc.Get("chart.processing"),
+        Loc.Get("chart.failed"),
+        Loc.Get("chart.flagged")
+    ];
+
+    protected override void OnParametersSet()
+    {
+        if (_chartCreated && _prevLang is not null && Lang != _prevLang)
+        {
+            _prevLang = Lang;
+            _langChanged = true;
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            var data = new[] { Completed, Pending, Processing, Failed, Flagged };
-            await ChartJs.CreateDoughnutChartAsync(_canvasId, StatusLabels, data, StatusColors);
+            _prevLang = Lang;
+            _lastData = [Completed, Pending, Processing, Failed, Flagged];
+            await ChartJs.CreateDoughnutChartAsync(_canvasId, GetStatusLabels(), _lastData, StatusColors);
             _chartCreated = true;
+        }
+        else if (_langChanged)
+        {
+            _langChanged = false;
+            try
+            {
+                await ChartJs.UpdateDoughnutDataAsync(_canvasId, GetStatusLabels(), _lastData);
+            }
+            catch { /* JS interop may fail */ }
         }
     }
 
@@ -37,10 +68,11 @@
     {
         if (!_chartCreated) return;
 
+        _lastData = [completed, pending, processing, failed, flagged];
+
         try
         {
-            var data = new[] { completed, pending, processing, failed, flagged };
-            await ChartJs.UpdateDoughnutDataAsync(_canvasId, StatusLabels, data);
+            await ChartJs.UpdateDoughnutDataAsync(_canvasId, GetStatusLabels(), _lastData);
         }
         catch (Exception) { /* JS interop may fail during reconnection */ }
     }

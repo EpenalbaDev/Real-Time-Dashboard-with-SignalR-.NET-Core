@@ -12,7 +12,7 @@ public sealed class ChartJsInterop : IAsyncDisposable
     }
 
     public async Task CreateLineChartAsync(string canvasId, string[] labels, decimal[] data,
-        string label = "Value", string borderColor = "#3b82f6", string backgroundColor = "rgba(59,130,246,0.1)")
+        string label = "Value", string borderColor = "#2f81f7", string backgroundColor = "rgba(47,129,247,0.1)")
     {
         await _js.InvokeVoidAsync("chartInterop.createLineChart",
             canvasId, labels, data.Select(d => (double)d).ToArray(), label, borderColor, backgroundColor);

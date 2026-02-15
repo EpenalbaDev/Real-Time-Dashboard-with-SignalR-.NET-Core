@@ -1,0 +1,50 @@
+graph TB
+    subgraph "Blazor Server Application"
+        direction TB
+        
+        subgraph "Background Services"
+            TP["🔄 TransactionProcessor<br/>Generates simulated txns<br/>Configurable TPS"]
+            MA["📊 MetricsAggregator<br/>Pre-computes metrics<br/>Every 500ms"]
+            BW["💾 BatchWriter<br/>Bulk INSERT to DB<br/>Every 100 txns or 1s"]
+            BC["📡 DashboardBroadcaster<br/>Batched SignalR updates<br/>Every 500ms"]
+        end
+        
+        CH_TXN["Channel&lt;Transaction&gt;<br/>Bounded: 10K capacity"]
+        CACHE["IMemoryCache<br/>Metrics Cache"]
+        HUB["SignalR Hub<br/>DashboardHub : Hub&lt;IDashboardClient&gt;"]
+        
+        subgraph "Blazor Components"
+            DASH["Dashboard.razor"]
+            CHART["TransactionChart.razor<br/>+ Chart.js Interop"]
+            TABLE["TransactionTable.razor<br/>+ Virtualize"]
+            CARDS["MetricsCard.razor"]
+        end
+    end
+    
+    DB[(MySQL 8.0<br/>Transactions<br/>+ Metrics)]
+    
+    TP -->|"Produce"| CH_TXN
+    CH_TXN -->|"Consume (batch)"| BW
+    CH_TXN -->|"Consume (latest)"| BC
+    BW -->|"Bulk INSERT"| DB
+    MA -->|"SELECT aggregates"| DB
+    MA -->|"Write"| CACHE
+    BC -->|"Read"| CACHE
+    BC -->|"Broadcast batch"| HUB
+    
+    HUB -->|"WebSocket"| C1["🖥️ Client 1"]
+    HUB -->|"WebSocket"| C2["🖥️ Client 2"]
+    HUB -->|"WebSocket"| CN["🖥️ Client N"]
+    
+    DASH --- CHART
+    DASH --- TABLE
+    DASH --- CARDS
+
+    style TP fill:#4CAF50,color:#fff
+    style MA fill:#2196F3,color:#fff
+    style BW fill:#FF9800,color:#fff
+    style BC fill:#9C27B0,color:#fff
+    style HUB fill:#F44336,color:#fff
+    style DB fill:#607D8B,color:#fff
+    style CH_TXN fill:#FFC107,color:#000
+    style CACHE fill:#00BCD4,color:#fff

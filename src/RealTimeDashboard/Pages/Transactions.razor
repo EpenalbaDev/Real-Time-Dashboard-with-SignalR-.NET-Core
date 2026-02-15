@@ -1,0 +1,150 @@
+@page "/transactions"
+@using RealTimeDashboard.Data.Entities
+@using RealTimeDashboard.Models
+@using RealTimeDashboard.Services
+@inject ITransactionService TransactionService
+
+<PageTitle>Transactions</PageTitle>
+
+<h1>Transactions</h1>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <label class="form-label">Status</label>
+        <select class="form-select" @onchange="OnStatusFilterChanged">
+            <option value="">All</option>
+            @foreach (var status in Enum.GetValues<TransactionStatus>())
+            {
+                <option value="@status">@status</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Type</label>
+        <select class="form-select" @onchange="OnTypeFilterChanged">
+            <option value="">All</option>
+            @foreach (var type in Enum.GetValues<TransactionType>())
+            {
+                <option value="@type">@type</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <p><em>Loading transactions...</em></p>
+}
+else if (_result is null || _result.Items.Count == 0)
+{
+    <p><em>No transactions found.</em></p>
+}
+else
+{
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Transaction ID</th>
+                <th>Amount</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Source</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var txn in _result.Items)
+            {
+                <tr>
+                    <td><code>@txn.TransactionId[..8]...</code></td>
+                    <td class="text-end">@txn.Amount.ToString("C")</td>
+                    <td><span class="badge bg-info">@txn.Type</span></td>
+                    <td><span class="badge @GetStatusBadgeClass(txn.Status)">@txn.Status</span></td>
+                    <td>@txn.Source</td>
+                    <td>@txn.CreatedAt.LocalDateTime.ToString("g")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <nav>
+        <ul class="pagination">
+            <li class="page-item @(!_result.HasPreviousPage ? "disabled" : "")">
+                <button class="page-link" @onclick="PreviousPage" disabled="@(!_result.HasPreviousPage)">Previous</button>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">Page @_result.Page of @_result.TotalPages (@_result.TotalCount total)</span>
+            </li>
+            <li class="page-item @(!_result.HasNextPage ? "disabled" : "")">
+                <button class="page-link" @onclick="NextPage" disabled="@(!_result.HasNextPage)">Next</button>
+            </li>
+        </ul>
+    </nav>
+}
+
+@code {
+    private PagedResult<TransactionDto>? _result;
+    private bool _loading = true;
+    private int _currentPage = 1;
+    private TransactionStatus? _statusFilter;
+    private TransactionType? _typeFilter;
+    private const int PageSize = 25;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTransactionsAsync();
+    }
+
+    private async Task LoadTransactionsAsync()
+    {
+        _loading = true;
+        _result = await TransactionService.GetTransactionsAsync(_currentPage, PageSize, _statusFilter, _typeFilter);
+        _loading = false;
+    }
+
+    private async Task OnStatusFilterChanged(ChangeEventArgs e)
+    {
+        _statusFilter = string.IsNullOrEmpty(e.Value?.ToString())
+            ? null
+            : Enum.Parse<TransactionStatus>(e.Value.ToString()!);
+        _currentPage = 1;
+        await LoadTransactionsAsync();
+    }
+
+    private async Task OnTypeFilterChanged(ChangeEventArgs e)
+    {
+        _typeFilter = string.IsNullOrEmpty(e.Value?.ToString())
+            ? null
+            : Enum.Parse<TransactionType>(e.Value.ToString()!);
+        _currentPage = 1;
+        await LoadTransactionsAsync();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (_result?.HasPreviousPage == true)
+        {
+            _currentPage--;
+            await LoadTransactionsAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (_result?.HasNextPage == true)
+        {
+            _currentPage++;
+            await LoadTransactionsAsync();
+        }
+    }
+
+    private static string GetStatusBadgeClass(TransactionStatus status) => status switch
+    {
+        TransactionStatus.Completed => "bg-success",
+        TransactionStatus.Pending => "bg-warning text-dark",
+        TransactionStatus.Processing => "bg-primary",
+        TransactionStatus.Failed => "bg-danger",
+        TransactionStatus.Flagged => "bg-dark",
+        _ => "bg-secondary"
+    };
+}

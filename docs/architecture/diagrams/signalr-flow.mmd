@@ -1,0 +1,38 @@
+sequenceDiagram
+    participant TP as TransactionProcessor
+    participant CH as Channel<T>
+    participant BW as BatchWriter
+    participant DB as MySQL
+    participant MA as MetricsAggregator
+    participant MC as MemoryCache
+    participant BC as Broadcaster
+    participant HUB as SignalR Hub
+    participant CL as Blazor Client
+
+    Note over TP: Generates txns at configurable TPS
+    
+    loop Every ~10ms (at 100 TPS)
+        TP->>CH: Write Transaction
+    end
+
+    loop Every 100 txns or 1 second
+        CH->>BW: Read batch
+        BW->>DB: Bulk INSERT (100 rows)
+    end
+
+    loop Every 500ms
+        MA->>DB: SELECT aggregated metrics
+        MA->>MC: Update cached metrics
+    end
+
+    loop Every 500ms
+        BC->>CH: Read new transactions (snapshot)
+        BC->>MC: Read latest metrics
+        BC->>HUB: SendAll(TransactionBatch + Metrics)
+        HUB->>CL: WebSocket frame (JSON)
+    end
+
+    Note over CL: Receives batch, updates charts ONCE
+    CL->>CL: Update Chart.js (single render)
+    CL->>CL: Prepend to transaction table
+    CL->>CL: Animate metric cards

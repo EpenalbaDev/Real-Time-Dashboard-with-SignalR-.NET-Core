@@ -37,8 +37,12 @@
     {
         if (!_chartCreated) return;
 
-        var data = new[] { completed, pending, processing, failed, flagged };
-        await ChartJs.UpdateDoughnutDataAsync(_canvasId, StatusLabels, data);
+        try
+        {
+            var data = new[] { completed, pending, processing, failed, flagged };
+            await ChartJs.UpdateDoughnutDataAsync(_canvasId, StatusLabels, data);
+        }
+        catch (Exception) { /* JS interop may fail during reconnection */ }
     }
 
     public async ValueTask DisposeAsync()

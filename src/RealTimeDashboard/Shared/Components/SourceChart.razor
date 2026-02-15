@@ -37,15 +37,19 @@
         var labels = sources.Select(s => s.Source).ToArray();
         var data = sources.Select(s => s.Count).ToArray();
 
-        if (!_chartCreated)
+        try
         {
-            await ChartJs.CreateBarChartAsync(_canvasId, labels, data, "Transactions", BarColors);
-            _chartCreated = true;
+            if (!_chartCreated)
+            {
+                await ChartJs.CreateBarChartAsync(_canvasId, labels, data, "Transactions", BarColors);
+                _chartCreated = true;
+            }
+            else
+            {
+                await ChartJs.UpdateBarDataAsync(_canvasId, labels, data);
+            }
         }
-        else
-        {
-            await ChartJs.UpdateBarDataAsync(_canvasId, labels, data);
-        }
+        catch (Exception) { /* JS interop may fail during reconnection */ }
     }
 
     public async ValueTask DisposeAsync()

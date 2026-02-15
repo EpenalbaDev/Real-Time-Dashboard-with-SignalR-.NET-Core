@@ -61,6 +61,7 @@
     private TransactionChart? _volumeChart;
     private StatusChart? _statusChart;
     private SourceChart? _sourceChart;
+    private bool _disposed;
 
     private const int MaxRecentTransactions = 100;
 
@@ -125,6 +126,8 @@
 
     private async Task OnBatchReceived(IReadOnlyList<TransactionDto> batch)
     {
+        if (_disposed) return;
+
         _newTxnIds = new HashSet<string>(batch.Select(t => t.TransactionId));
 
         // Prepend new transactions
@@ -136,14 +139,19 @@
             _recentTransactions.RemoveAt(_recentTransactions.Count - 1);
         }
 
-        await InvokeAsync(StateHasChanged);
-
-        // Clear new highlight after delay
-        _ = Task.Delay(1500).ContinueWith(_ =>
+        try
         {
-            _newTxnIds.Clear();
-            InvokeAsync(StateHasChanged);
-        });
+            await InvokeAsync(StateHasChanged);
+
+            // Clear new highlight after delay
+            _ = Task.Delay(1500).ContinueWith(_ =>
+            {
+                if (_disposed) return;
+                _newTxnIds.Clear();
+                InvokeAsync(StateHasChanged);
+            });
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private async Task OnMetricsReceived(DashboardMetricsDto metrics)
@@ -173,9 +181,9 @@
             if (_sourceChart is not null && metrics.TopSources.Count > 0)
                 await _sourceChart.UpdateAsync(metrics.TopSources);
         }
-        catch (JSDisconnectedException)
+        catch (Exception) when (!_disposed)
         {
-            // Component disposed
+            // JS interop can fail during reconnection or disposal
         }
     }
 
@@ -187,6 +195,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         if (_hubConnection is not null)
         {
             await _hubConnection.DisposeAsync();

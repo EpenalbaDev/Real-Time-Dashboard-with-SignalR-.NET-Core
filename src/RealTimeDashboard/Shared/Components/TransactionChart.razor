@@ -48,7 +48,11 @@
             _data.RemoveAt(0);
         }
 
-        await ChartJs.UpdateLineDataAsync(_canvasId, _labels.ToArray(), _data.ToArray());
+        try
+        {
+            await ChartJs.UpdateLineDataAsync(_canvasId, _labels.ToArray(), _data.ToArray());
+        }
+        catch (Exception) { /* JS interop may fail during reconnection */ }
     }
 
     public async ValueTask DisposeAsync()

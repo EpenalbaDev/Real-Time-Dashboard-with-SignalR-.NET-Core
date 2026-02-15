@@ -29,3 +29,10 @@ docker-compose.override.yml
 ## Test results
 TestResults/
 coverage/
+
+## AI/Editor config
+.claude/
+.cursorrules
+
+## Internal docs
+docs/

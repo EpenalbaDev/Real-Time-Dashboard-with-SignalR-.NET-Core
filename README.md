@@ -20,7 +20,7 @@ TransactionProcessor --> Channel<T> --> DashboardBroadcaster --> SignalR Hub -->
 | `MetricsAggregator` | Pre-compute dashboard metrics from DB | Every 500ms |
 | `DashboardBroadcaster` | Batch and send SignalR updates to all clients | Every 500ms |
 
-See [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) for the full architecture deep-dive.
+The key insight: **separate data ingestion, metric computation, and client delivery into independent loops running at their own cadences.**
 
 ## Key Features
 
@@ -50,7 +50,7 @@ See [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) for
 ### Docker Compose (recommended)
 
 ```bash
-git clone https://github.com/your-username/Real-Time-Dashboard-with-SignalR-.NET-Core.git
+git clone https://github.com/EpenalbaDev/Real-Time-Dashboard-with-SignalR-.NET-Core.git
 cd Real-Time-Dashboard-with-SignalR-.NET-Core
 docker-compose up
 ```
@@ -102,17 +102,6 @@ dotnet test --filter "Category=LoadTest"
 | **Batched (500ms)** | **2** | **2 x N** |
 | **Improvement** | **50x fewer** | **50x fewer** |
 
-See [`docs/architecture/benchmarks/BENCHMARKS.md`](docs/architecture/benchmarks/BENCHMARKS.md) for detailed numbers.
-
-## Architecture Diagrams
-
-The project includes 4 Mermaid diagrams in `docs/architecture/diagrams/`:
-
-- **system-overview.mmd** - Component architecture and data flow
-- **signalr-flow.mmd** - Sequence diagram of the real-time pipeline
-- **data-pipeline.mmd** - Detailed transaction-to-chart flow
-- **scaling-strategy.mmd** - Scaling tiers from 100K to 10M+/day
-
 ## Project Structure
 
 ```
@@ -125,11 +114,7 @@ src/
 │   ├── Pages/                      # Dashboard.razor, Transactions.razor
 │   ├── Shared/Components/          # MetricsCard, Charts, Table, StatusIndicator
 │   └── wwwroot/                    # Dark theme CSS, Chart.js interop
-├── RealTimeDashboard.Tests/        # Unit tests + load tests
-docs/
-├── architecture/                   # ARCHITECTURE.md, diagrams, benchmarks
-├── phases/                         # Development phase specifications
-└── blog/                           # Blog article draft
+└── RealTimeDashboard.Tests/        # Unit tests + load tests
 ```
 
 ## Scaling Paths

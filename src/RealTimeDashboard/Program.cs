@@ -35,10 +35,13 @@ builder.Services.AddSignalR(options =>
 builder.Services.AddMemoryCache();
 
 // Database
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+// Support Railway's MYSQL_URL or standard connection string
+var connectionString = Environment.GetEnvironmentVariable("MYSQL_URL") is { } mysqlUrl
+    ? ConvertMySqlUrl(mysqlUrl)
+    : builder.Configuration.GetConnectionString("DefaultConnection")
+      ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-var serverVersion = ServerVersion.AutoDetect(connectionString);
+var serverVersion = new MySqlServerVersion(new Version(9, 0, 0));
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, serverVersion, mysqlOptions =>
@@ -135,4 +138,22 @@ app.MapFallbackToPage("/_Host");
 
 app.Run();
 
-public partial class Program { }
+public partial class Program
+{
+    /// <summary>
+    /// Converts a MySQL URL (mysql://user:pass@host:port/db) to a .NET connection string.
+    /// Railway provides MYSQL_URL automatically for MySQL services.
+    /// </summary>
+    static string ConvertMySqlUrl(string url)
+    {
+        var uri = new Uri(url);
+        var userInfo = uri.UserInfo.Split(':');
+        var user = userInfo[0];
+        var password = userInfo.Length > 1 ? userInfo[1] : "";
+        var host = uri.Host;
+        var port = uri.Port > 0 ? uri.Port : 3306;
+        var database = uri.AbsolutePath.TrimStart('/');
+
+        return $"Server={host};Port={port};Database={database};User={user};Password={password};";
+    }
+}

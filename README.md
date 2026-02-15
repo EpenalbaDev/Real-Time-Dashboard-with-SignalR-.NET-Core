@@ -2,6 +2,8 @@
 
 > SignalR + .NET 8 + Blazor Server + MySQL
 
+[**Live Demo**](https://real-time-dashboard-with-signalr-net-core-production.up.railway.app/dashboard)
+
 A production-grade real-time financial transaction dashboard that handles **100K+ daily transactions** with sub-100ms dashboard updates. Built to demonstrate how to scale SignalR beyond chat apps.
 
 ## Architecture

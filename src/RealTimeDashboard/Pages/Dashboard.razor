@@ -58,7 +58,7 @@
     private StatusIndicator.ConnectionState _connectionState = StatusIndicator.ConnectionState.Disconnected;
 
     private DashboardMetricsDto _metrics = new();
-    private readonly List<TransactionDto> _recentTransactions = new();
+    private List<TransactionDto> _recentTransactions = new();
     private HashSet<string> _newTxnIds = new();
 
     private TransactionChart? _volumeChart;
@@ -133,14 +133,13 @@
 
         _newTxnIds = new HashSet<string>(batch.Select(t => t.TransactionId));
 
-        // Prepend new transactions
-        _recentTransactions.InsertRange(0, batch);
-
-        // Trim to max
-        while (_recentTransactions.Count > MaxRecentTransactions)
-        {
-            _recentTransactions.RemoveAt(_recentTransactions.Count - 1);
-        }
+        // Replace list atomically to avoid collection-modified during rendering
+        var updated = new List<TransactionDto>(batch.Count + _recentTransactions.Count);
+        updated.AddRange(batch);
+        updated.AddRange(_recentTransactions);
+        if (updated.Count > MaxRecentTransactions)
+            updated.RemoveRange(MaxRecentTransactions, updated.Count - MaxRecentTransactions);
+        _recentTransactions = updated;
 
         try
         {

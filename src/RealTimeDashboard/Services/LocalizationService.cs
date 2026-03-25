@@ -69,6 +69,9 @@ public sealed class LocalizationService : ILocalizationService
             ["nav.brand"] = "RealTime",
 
             ["footer.builtBy"] = "Built by",
+
+            ["demo.start"] = "Run Demo",
+            ["demo.running"] = "Running",
         },
         ["es"] = new()
         {
@@ -127,6 +130,9 @@ public sealed class LocalizationService : ILocalizationService
             ["nav.brand"] = "RealTime",
 
             ["footer.builtBy"] = "Desarrollado por",
+
+            ["demo.start"] = "Ejecutar Demo",
+            ["demo.running"] = "Ejecutando",
         }
     };
 

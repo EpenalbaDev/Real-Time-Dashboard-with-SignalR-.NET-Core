@@ -11,9 +11,12 @@ public sealed class DashboardBroadcaster : BackgroundService
     private readonly IHubContext<DashboardHub, IDashboardClient> _hubContext;
     private readonly TransactionChannel _channel;
     private readonly MetricsAggregator _metricsAggregator;
+    private readonly TransactionProcessorService _processor;
     private readonly ILogger<DashboardBroadcaster> _logger;
 
-    private static readonly TimeSpan BroadcastInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan ActiveInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan IdleInterval = TimeSpan.FromSeconds(2);
+    private bool _lastDemoState;
 
     // Performance counters
     private long _totalBroadcasts;
@@ -32,26 +35,36 @@ public sealed class DashboardBroadcaster : BackgroundService
         IHubContext<DashboardHub, IDashboardClient> hubContext,
         TransactionChannel channel,
         MetricsAggregator metricsAggregator,
+        TransactionProcessorService processor,
         ILogger<DashboardBroadcaster> logger)
     {
         _hubContext = hubContext;
         _channel = channel;
         _metricsAggregator = metricsAggregator;
+        _processor = processor;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("DashboardBroadcaster starting (interval: {Interval}ms)",
-            BroadcastInterval.TotalMilliseconds);
+        _logger.LogInformation("DashboardBroadcaster starting (adaptive interval mode)");
 
         var buffer = new List<TransactionEntity>();
         var sw = new Stopwatch();
 
-        using var timer = new PeriodicTimer(BroadcastInterval);
-
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
+            var interval = _processor.IsDemoRunning ? ActiveInterval : IdleInterval;
+
+            try
+            {
+                await Task.Delay(interval, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
             try
             {
                 while (_channel.Reader.TryRead(out var transaction))
@@ -100,6 +113,14 @@ public sealed class DashboardBroadcaster : BackgroundService
                     buffer.Clear();
                 }
 
+                // Notify clients when demo state changes
+                var currentDemoState = _processor.IsDemoRunning;
+                if (_lastDemoState != currentDemoState)
+                {
+                    _lastDemoState = currentDemoState;
+                    await _hubContext.Clients.All.ReceiveDemoStatus(currentDemoState, _processor.RemainingSeconds);
+                }
+
                 var metrics = _metricsAggregator.GetCachedMetrics();
                 if (metrics is not null)
                 {
@@ -115,7 +136,7 @@ public sealed class DashboardBroadcaster : BackgroundService
 
                 _avgBroadcastMs = (_avgBroadcastMs * (_totalBroadcasts - 1) + _lastBroadcastMs) / _totalBroadcasts;
 
-                if (_totalBroadcasts % 120 == 0) // Log every ~60 seconds
+                if (_totalBroadcasts % 120 == 0)
                 {
                     _logger.LogInformation(
                         "Broadcaster stats: {Total} broadcasts, avg {Avg:F2}ms, max {Max:F2}ms, last {Last:F2}ms, {Connections} clients",

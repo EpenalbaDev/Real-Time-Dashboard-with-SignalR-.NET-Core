@@ -14,6 +14,17 @@ public sealed class TransactionProcessorService : BackgroundService
     private readonly List<TransactionEntity> _dbBatch = new(100);
     private readonly object _batchLock = new();
 
+    // Demo control
+    private readonly SemaphoreSlim _demoSignal = new(0);
+    private volatile bool _isDemoRunning;
+    private DateTimeOffset _demoEndTime;
+    private static readonly int DefaultDemoDurationSeconds = 10;
+
+    public bool IsDemoRunning => _isDemoRunning;
+    public int RemainingSeconds => _isDemoRunning
+        ? Math.Max(0, (int)(_demoEndTime - DateTimeOffset.UtcNow).TotalSeconds)
+        : 0;
+
     // Performance counters
     private long _totalTransactionsProduced;
     private long _totalDbFlushes;
@@ -50,14 +61,79 @@ public sealed class TransactionProcessorService : BackgroundService
         _configuration = configuration;
     }
 
+    /// <summary>
+    /// Starts a demo run. Generates transactions for the specified duration.
+    /// Returns false if a demo is already running.
+    /// </summary>
+    public bool StartDemo(int durationSeconds = 0)
+    {
+        if (_isDemoRunning) return false;
+
+        if (durationSeconds <= 0)
+            durationSeconds = _configuration.GetValue("TransactionProcessor:DemoDurationSeconds", DefaultDemoDurationSeconds);
+
+        _demoEndTime = DateTimeOffset.UtcNow.AddSeconds(durationSeconds);
+        _isDemoRunning = true;
+        _demoSignal.Release();
+
+        _logger.LogInformation("Demo started for {Duration} seconds", durationSeconds);
+        return true;
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("TransactionProcessorService starting");
+        _logger.LogInformation("TransactionProcessorService starting (on-demand demo mode)");
 
-        var producerTask = ProduceTransactionsAsync(stoppingToken);
-        var writerTask = PeriodicFlushAsync(stoppingToken);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            // Wait for a demo to be triggered
+            try
+            {
+                await _demoSignal.WaitAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
 
-        await Task.WhenAll(producerTask, writerTask);
+            _logger.LogInformation("Demo run starting, will run until {EndTime}", _demoEndTime);
+
+            // Run producer + flusher for the demo duration
+            using var demoCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            var demoToken = demoCts.Token;
+
+            var producerTask = ProduceTransactionsAsync(demoToken);
+            var writerTask = PeriodicFlushAsync(demoToken);
+
+            // Wait until demo duration expires
+            var remaining = _demoEndTime - DateTimeOffset.UtcNow;
+            if (remaining > TimeSpan.Zero)
+            {
+                try
+                {
+                    await Task.Delay(remaining, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // App shutting down
+                }
+            }
+
+            // Stop the demo
+            demoCts.Cancel();
+
+            try
+            {
+                await Task.WhenAll(producerTask, writerTask);
+            }
+            catch (OperationCanceledException) { }
+
+            // Final flush
+            await FlushBatchAsync();
+
+            _isDemoRunning = false;
+            _logger.LogInformation("Demo run completed. Produced: {Produced} total transactions", _totalTransactionsProduced);
+        }
 
         _logger.LogInformation(
             "TransactionProcessorService stopped. Produced: {Produced}, DB flushes: {Flushes}, DB rows: {Rows}, Avg flush: {Avg:F2}ms",
@@ -104,16 +180,10 @@ public sealed class TransactionProcessorService : BackgroundService
                 await Task.Delay(1000, stoppingToken);
             }
         }
-
-        // Final flush
-        await FlushBatchAsync();
-        _broadcastChannel.Writer.TryComplete();
     }
 
     private async Task PeriodicFlushAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Batch database writer started");
-
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
@@ -187,7 +257,7 @@ public sealed class TransactionProcessorService : BackgroundService
         }
         catch (OperationCanceledException)
         {
-            // Shutting down
+            // Demo ended
         }
     }
 

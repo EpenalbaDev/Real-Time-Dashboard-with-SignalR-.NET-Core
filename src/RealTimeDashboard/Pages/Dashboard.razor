@@ -11,7 +11,23 @@
 
 <div class="dashboard-header">
     <h1>@Loc.Get("dashboard.title")</h1>
-    <StatusIndicator State="_connectionState" />
+    <div class="dashboard-header-actions">
+        <button class="demo-button @(_isDemoRunning ? "demo-running" : "")"
+                @onclick="StartDemo"
+                disabled="@(_isDemoRunning || _connectionState != StatusIndicator.ConnectionState.Connected)">
+            @if (_isDemoRunning)
+            {
+                <span class="demo-pulse"></span>
+                <span>@Loc.Get("demo.running") (@_remainingSeconds s)</span>
+            }
+            else
+            {
+                <span class="demo-icon">▶</span>
+                <span>@Loc.Get("demo.start")</span>
+            }
+        </button>
+        <StatusIndicator State="_connectionState" />
+    </div>
 </div>
 
 <!-- Metrics Cards -->
@@ -66,6 +82,11 @@
     private SourceChart? _sourceChart;
     private bool _disposed;
 
+    // Demo state
+    private bool _isDemoRunning;
+    private int _remainingSeconds;
+    private System.Threading.Timer? _countdownTimer;
+
     private const int MaxRecentTransactions = 100;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -74,6 +95,34 @@
         {
             await StartHubConnectionAsync();
         }
+    }
+
+    private async Task StartDemo()
+    {
+        if (_hubConnection?.State == HubConnectionState.Connected && !_isDemoRunning)
+        {
+            await _hubConnection.SendAsync("StartDemo");
+        }
+    }
+
+    private void StartCountdown()
+    {
+        _countdownTimer?.Dispose();
+        _countdownTimer = new System.Threading.Timer(async _ =>
+        {
+            if (_remainingSeconds > 0)
+            {
+                _remainingSeconds--;
+                try { await InvokeAsync(StateHasChanged); } catch (ObjectDisposedException) { }
+            }
+            else
+            {
+                _isDemoRunning = false;
+                _countdownTimer?.Dispose();
+                _countdownTimer = null;
+                try { await InvokeAsync(StateHasChanged); } catch (ObjectDisposedException) { }
+            }
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
 
     private async Task StartHubConnectionAsync()
@@ -95,6 +144,7 @@
         _hubConnection.On<IReadOnlyList<TransactionDto>>("ReceiveTransactionBatch", OnBatchReceived);
         _hubConnection.On<DashboardMetricsDto>("ReceiveMetricsUpdate", OnMetricsReceived);
         _hubConnection.On<AlertDto>("ReceiveAlert", OnAlertReceived);
+        _hubConnection.On<bool, int>("ReceiveDemoStatus", OnDemoStatusReceived);
 
         _hubConnection.Reconnecting += _ =>
         {
@@ -125,6 +175,23 @@
             _connectionState = StatusIndicator.ConnectionState.Disconnected;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private async Task OnDemoStatusReceived(bool isRunning, int remainingSeconds)
+    {
+        _isDemoRunning = isRunning;
+        _remainingSeconds = remainingSeconds;
+
+        if (isRunning && remainingSeconds > 0)
+        {
+            StartCountdown();
+        }
+
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private async Task OnBatchReceived(IReadOnlyList<TransactionDto> batch)
@@ -198,6 +265,7 @@
     public async ValueTask DisposeAsync()
     {
         _disposed = true;
+        _countdownTimer?.Dispose();
         if (_hubConnection is not null)
         {
             await _hubConnection.DisposeAsync();

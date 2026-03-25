@@ -59,10 +59,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Services
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddSingleton<TransactionChannel>();
-builder.Services.AddSingleton<MetricsAggregator>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<MetricsAggregator>());
 builder.Services.AddSingleton<TransactionProcessorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TransactionProcessorService>());
+builder.Services.AddSingleton<MetricsAggregator>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MetricsAggregator>());
 builder.Services.AddSingleton<DashboardBroadcaster>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DashboardBroadcaster>());
 builder.Services.AddScoped<ChartJsInterop>();

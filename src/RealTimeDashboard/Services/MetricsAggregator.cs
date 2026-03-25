@@ -12,10 +12,12 @@ public sealed class MetricsAggregator : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IMemoryCache _cache;
+    private readonly TransactionProcessorService _processor;
     private readonly ILogger<MetricsAggregator> _logger;
 
     public const string MetricsCacheKey = "dashboard:metrics";
-    private static readonly TimeSpan ComputeInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan ActiveInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan IdleInterval = TimeSpan.FromSeconds(5);
 
     // Performance counters
     private long _totalComputations;
@@ -31,22 +33,38 @@ public sealed class MetricsAggregator : BackgroundService
     public MetricsAggregator(
         IServiceScopeFactory scopeFactory,
         IMemoryCache cache,
+        TransactionProcessorService processor,
         ILogger<MetricsAggregator> logger)
     {
         _scopeFactory = scopeFactory;
         _cache = cache;
+        _processor = processor;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("MetricsAggregator starting");
+        _logger.LogInformation("MetricsAggregator starting (adaptive interval mode)");
 
         var sw = new Stopwatch();
-        using var timer = new PeriodicTimer(ComputeInterval);
 
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
+            var interval = _processor.IsDemoRunning ? ActiveInterval : IdleInterval;
+
+            try
+            {
+                await Task.Delay(interval, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            // Skip computation if no clients and no demo running
+            if (DashboardHub.ConnectionCount == 0 && !_processor.IsDemoRunning)
+                continue;
+
             try
             {
                 sw.Restart();
